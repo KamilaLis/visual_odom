@@ -6,23 +6,26 @@
 
 #include <ros/ros.h>
 #include <nav_msgs/Odometry.h>
+#include <geometry_msgs/Twist.h>
 
 namespace visual_odom{
 
 class ComponentOdom
 {
 public:
-    ComponentOdom(const std::string& subFrom);
-
-protected:
-    void odomCallback(const nav_msgs::Odometry::ConstPtr& msg);
+    ComponentOdom(const std::string& subFrom, bool odom);
     double getTwistLinear();
     double getTwistAngular();
 
+protected:
+    void odomCallback(const nav_msgs::Odometry::ConstPtr& msg);
+    void cmdCallback(const geometry_msgs::Twist::ConstPtr& msg);
+
+
 private:
     ros::Subscriber sub_;
-    double twist_linear_;
-    double twist_angular_;
+    double linear_;
+    double angular_;
 };
 
 }; //namespace

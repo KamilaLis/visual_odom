@@ -1,21 +1,7 @@
 <launch>
 
-  <!-- Viso2 -->
-  <arg name="camera" default="/bottom_kinect"/>
-  <param name="/use_sim_time" value="true"/>
-
-    <node pkg="viso2_ros" type="mono_odometer" name="mono_odometer" output="screen">
-        <remap from="mono" to="$(arg camera)"/>
-        <remap from="image" to="$(arg camera)/rgb/image_raw"/>
-        <remap from="/camera/camera_info" to="$(arg camera)/rgb/camera_info"/>
-
-        <param name="base_link_frame_id" value="/base_link"/>
-        <param name="camera_height" value="480"/>
-        <param name="camera_pitch" value="0"/>
-        <param name="sensor_frame_id" value="/kinect_camera_rgb_frame_bottom"/>
-
-        <param name="bucket_width" value="640"/>
-    </node>
+    <!-- Viso2 -->
+    <include file="$(find viso2_ros)/launch/demo.launch" />
 
     <!-- visual_odom_node -->
     <arg name="name"
