@@ -19,6 +19,8 @@ void ComponentOdom::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
   //robot twist
   this->linear_ = msg->twist.twist.linear.x;
   this->angular_ = msg->twist.twist.angular.z;
+  this->lin_y_=msg->twist.twist.linear.y;
+  this->lin_z_=msg->twist.twist.linear.z;
   //ROS_INFO("viso2_linear_: [%f]", linear_);
   //ROS_INFO("viso2_angular_: [%f]", angular_);
 }
@@ -27,8 +29,8 @@ void ComponentOdom::cmdCallback(const geometry_msgs::Twist::ConstPtr& msg)
 {
   this->linear_ = msg->linear.x;
   this->angular_ = msg->angular.z;
-  ROS_INFO("cmd_vel_x_: [%f]", this->linear_);
-  ROS_INFO("cmd_vel_z_: [%f]", angular_);
+  //ROS_INFO("cmd_vel_x_: [%f]", this->linear_);
+  //ROS_INFO("cmd_vel_z_: [%f]", angular_);
 }
 
 double ComponentOdom::getTwistLinear()
@@ -46,7 +48,8 @@ double ComponentOdom::getTwistAngular()
 
 
 bool isEqual(double vis_odom, double cmd_vel){
-  return vis_odom >= cmd_vel-0.2 && vis_odom <= cmd_vel+0.2; //+/- costam
+  return vis_odom >= cmd_vel-0.1 && vis_odom <= cmd_vel+0.1; 
+  //docelowo to +/- costam musi byc mniejsze!!
 }
 
 void infoCallback(const viso2_ros::VisoInfo::ConstPtr& msg, 
@@ -56,11 +59,13 @@ void infoCallback(const viso2_ros::VisoInfo::ConstPtr& msg,
   if(!msg->got_lost) //is possible to compare
   {
     ROS_INFO("I'm here!");
-    ROS_INFO("viso2_linear_: [%f]", viso2->getTwistLinear());
+   // ROS_INFO("viso2_linear_: [%f]", viso2->getTwistLinear());
+   // ROS_INFO("viso_y_: [%f]",viso2->lin_y_);
+    ROS_INFO("viso_z_: [%f]",viso2->lin_z_);
     ROS_INFO("cmd_vel_linear_: [%f]", cmd->getTwistLinear());
-   /* if(!isEqual(viso2.getTwistLinear(),cmd.getTwistLinear()))
+   /* if(!isEqual(viso2->getTwistLinear(),cmd->getTwistLinear()))
       ROS_INFO("Linear velocity is not equal");
-    if(!isEqual(viso2.getTwistAngular(),cmd.getTwistAngular()))
+    if(!isEqual(viso2->getTwistAngular(),cmd->getTwistAngular()))
       ROS_INFO("Angular velocity is not equal");*/
   }
 }
