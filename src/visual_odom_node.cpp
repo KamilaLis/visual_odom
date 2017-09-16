@@ -6,31 +6,33 @@
 namespace visual_odom
 {
 
-ComponentOdom::ComponentOdom(const std::string& subFrom, bool odom)
+ComponentOdom::ComponentOdom(const std::string& subFrom, bool odom):
+    buff_angular_(0.0),
+    buff_linear_(0.0)
 {
   ros::NodeHandle n;
   if (odom) sub_ = n.subscribe(subFrom, 1000, &ComponentOdom::odomCallback, this);
   else sub_ = n.subscribe(subFrom, 1000, &ComponentOdom::cmdCallback, this);
 }
 
-// czy nie da sie przeciazyc tej funkcji? co zrobic by rozroznial typy?
 void ComponentOdom::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
 {
   //robot twist
-  this->linear_ = msg->twist.twist.linear.x;
-  this->angular_ = msg->twist.twist.angular.z;
-  this->lin_y_=msg->twist.twist.linear.y;
-  this->lin_z_=msg->twist.twist.linear.z;
-  //ROS_INFO("viso2_linear_: [%f]", linear_);
-  //ROS_INFO("viso2_angular_: [%f]", angular_);
+  double lin = msg->twist.twist.linear.z;
+  if ((lin>=-1 && lin<=-0.001)||(lin>=0.001 && lin<=1)){
+    this->linear_ = lin;
+  }
+
+  double ang = -(msg->twist.twist.angular.y);
+  if ((ang>=-1 && ang<=-0.001)||(ang>=0.001 && ang<=1))
+    this->angular_ = ang;
+    
 }
 
 void ComponentOdom::cmdCallback(const geometry_msgs::Twist::ConstPtr& msg)
 {
   this->linear_ = msg->linear.x;
   this->angular_ = msg->angular.z;
-  //ROS_INFO("cmd_vel_x_: [%f]", this->linear_);
-  //ROS_INFO("cmd_vel_z_: [%f]", angular_);
 }
 
 double ComponentOdom::getTwistLinear()
@@ -43,13 +45,26 @@ double ComponentOdom::getTwistAngular()
   return this->angular_;
 }
 
+double ComponentOdom::getOldLinear()
+{
+  return this->buff_linear_;
+}
+
+double ComponentOdom::getOldAngular()
+{
+  return this->buff_angular_;
+}
 
 }; //namespace
 
 
-bool isEqual(double vis_odom, double cmd_vel){
+
+bool isEqual(double vis_odom, double cmd_vel)
+{
   return vis_odom >= cmd_vel-0.1 && vis_odom <= cmd_vel+0.1; 
-  //docelowo to +/- costam musi byc mniejsze!!
+
+
+
 }
 
 void infoCallback(const viso2_ros::VisoInfo::ConstPtr& msg, 
@@ -58,15 +73,44 @@ void infoCallback(const viso2_ros::VisoInfo::ConstPtr& msg,
 {
   if(!msg->got_lost) //is possible to compare
   {
-    ROS_INFO("I'm here!");
-   // ROS_INFO("viso2_linear_: [%f]", viso2->getTwistLinear());
-   // ROS_INFO("viso_y_: [%f]",viso2->lin_y_);
-    ROS_INFO("viso_z_: [%f]",viso2->lin_z_);
+    ROS_INFO(">> I'm here!");
+    ROS_INFO("viso_z_: [%f]",viso2->getTwistLinear());
     ROS_INFO("cmd_vel_linear_: [%f]", cmd->getTwistLinear());
-   /* if(!isEqual(viso2->getTwistLinear(),cmd->getTwistLinear()))
-      ROS_INFO("Linear velocity is not equal");
+    ROS_INFO("viso_ang_y:[%f]",viso2->getTwistAngular());
+    ROS_INFO("cmd_vel_angular:[%f]", cmd->getTwistAngular());
+    ROS_INFO("cmd_angular_last:[%f]", cmd->getOldAngular());
+
+    if(!isEqual(viso2->getTwistLinear(),cmd->getTwistLinear()))
+    {
+      ROS_WARN("Current linear not equal, checking last one...");
+      if(!isEqual(viso2->getTwistLinear(),cmd->getOldLinear()))
+      {
+        ROS_ERROR("Linear velocity is not equal");
+        ROS_INFO("viso_z_: [%f]",viso2->getTwistLinear());
+        ROS_INFO("cmd_vel_linear_: [%f]", cmd->getTwistLinear());
+      }
+      else ROS_INFO("Fine! Continuing...");
+
+    }
+
     if(!isEqual(viso2->getTwistAngular(),cmd->getTwistAngular()))
-      ROS_INFO("Angular velocity is not equal");*/
+    {
+      ROS_WARN("Current angular not equal, checking last one...");
+      if(!isEqual(viso2->getTwistAngular(),cmd->getOldAngular()))
+      {
+        ROS_ERROR("Angular velocity is not equal");
+        ROS_INFO("viso_ang_y:[%f]",viso2->getTwistAngular());
+        ROS_INFO("cmd_vel_angular:[%f]", cmd->getOldAngular());
+      }
+      else
+      {
+        ROS_INFO("Fine! Continuing...");
+      }
+
+    }
+    // save current value as old one
+    cmd->buff_angular_=cmd->getTwistAngular();
+    cmd->buff_linear_=cmd->getTwistLinear();
   }
 }
 
@@ -76,7 +120,6 @@ int main(int argc, char **argv)
 
   ros::init(argc, argv, "visual_odom");
 
-// consider shared_ptr : 
   boost::shared_ptr<visual_odom::ComponentOdom> viso2_ptr(new visual_odom::ComponentOdom("/mono_odometer/odometry", true));
   boost::shared_ptr<visual_odom::ComponentOdom> cmd_vel_ptr(new visual_odom::ComponentOdom("/mux_vel_raw/cmd_vel", false));
  // visual_odom::ComponentOdom viso2("/mono_odometer/odometry", true);
