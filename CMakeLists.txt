@@ -11,6 +11,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   viso2_ros
+  libviso2
 )
 
 ###################################
@@ -31,6 +32,7 @@ catkin_package(
 ## Locations ##
 
 include_directories(
+  ${libviso2_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
   include/
 )

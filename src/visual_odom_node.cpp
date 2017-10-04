@@ -1,70 +1,98 @@
+
+
 #include <ros/ros.h>
 #include "visual_odom/component_odom.h"
-
-#include <viso2_ros/VisoInfo.h>
 
 namespace visual_odom
 {
 
-ComponentOdom::ComponentOdom(const std::string& subFrom, bool odom):
+ComponentOdom::ComponentOdom(const std::string& subFrom, bool cmd):
     buff_angular_(0.0),
-    buff_linear_(0.0)
+    buff_linear_(0.0),
+    linear_(0.0),
+    angular_(0.0)
 {
   ros::NodeHandle n;
-  if (odom) sub_ = n.subscribe(subFrom, 1000, &ComponentOdom::odomCallback, this);
-  else sub_ = n.subscribe(subFrom, 1000, &ComponentOdom::cmdCallback, this);
+  if (cmd) sub_ = n.subscribe(subFrom, 1000, &ComponentOdom::cmdCallback, this);
+  else sub_ = n.subscribe(subFrom, 1000, &ComponentOdom::viso2Callback, this);
 }
 
-void ComponentOdom::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
+void ComponentOdom::viso2Callback(const nav_msgs::Odometry::ConstPtr& msg)
 {
-  //robot twist
+  boost::mutex::scoped_lock lock(mutex_);
   double lin = msg->twist.twist.linear.z;
   if ((lin>=-1 && lin<=-0.001)||(lin>=0.001 && lin<=1)){
-    this->linear_ = lin;
+    linear_ = lin;
   }
 
   double ang = -(msg->twist.twist.angular.y);
   if ((ang>=-1 && ang<=-0.001)||(ang>=0.001 && ang<=1))
-    this->angular_ = ang;
+    angular_ = ang;
     
 }
 
 void ComponentOdom::cmdCallback(const geometry_msgs::Twist::ConstPtr& msg)
 {
-  this->linear_ = msg->linear.x;
-  this->angular_ = msg->angular.z;
+  boost::mutex::scoped_lock lock(mutex_);
+  linear_ = msg->linear.x;
+  angular_ = msg->angular.z;
+}
+
+void ComponentOdom::kalmanCallback(const geometry_msgs::Twist::ConstPtr& msg)
+{
+  boost::mutex::scoped_lock lock(mutex_);
+  linear_ = msg->linear.x;
+  angular_ = msg->angular.z;
+  if (!had_first_callback_) had_first_callback_=true;
 }
 
 double ComponentOdom::getTwistLinear()
 {
-  return this->linear_;
+  return linear_;
 }
 
 double ComponentOdom::getTwistAngular()
 {
-  return this->angular_;
+  return angular_;
 }
 
 double ComponentOdom::getOldLinear()
 {
-  return this->buff_linear_;
+  return buff_linear_;
 }
 
 double ComponentOdom::getOldAngular()
 {
-  return this->buff_angular_;
+  return buff_angular_;
 }
+
+
 
 }; //namespace
 
 
 
-bool isEqual(double vis_odom, double cmd_vel)
+
+std::list<bool> warnings_;
+
+void updateWindow(bool warning)
 {
-  return vis_odom >= cmd_vel-0.1 && vis_odom <= cmd_vel+0.1; 
+  warnings_.push_back(warning);
+  if (warnings_.size()>=10)
+    warnings_.pop_front();
 
+  // check number of warnings in window
+  int counter=0;
+  for (std::list<bool>::iterator it = warnings_.begin(); it != warnings_.end(); it++)
+    ++counter;
+  if (counter>=5)
+    ROS_ERROR("Velocities are not equal");
 
+}
 
+bool isEqual(double vel, double cmd_vel)
+{
+  return vel >= cmd_vel-0.1 && vel <= cmd_vel+0.1; 
 }
 
 void infoCallback(const viso2_ros::VisoInfo::ConstPtr& msg, 
@@ -74,20 +102,14 @@ void infoCallback(const viso2_ros::VisoInfo::ConstPtr& msg,
   if(!msg->got_lost) //is possible to compare
   {
     ROS_INFO(">> I'm here!");
-    ROS_INFO("viso_z_: [%f]",viso2->getTwistLinear());
-    ROS_INFO("cmd_vel_linear_: [%f]", cmd->getTwistLinear());
-    ROS_INFO("viso_ang_y:[%f]",viso2->getTwistAngular());
-    ROS_INFO("cmd_vel_angular:[%f]", cmd->getTwistAngular());
-    ROS_INFO("cmd_angular_last:[%f]", cmd->getOldAngular());
+    bool warning=false;
 
     if(!isEqual(viso2->getTwistLinear(),cmd->getTwistLinear()))
     {
       ROS_WARN("Current linear not equal, checking last one...");
       if(!isEqual(viso2->getTwistLinear(),cmd->getOldLinear()))
       {
-        ROS_ERROR("Linear velocity is not equal");
-        ROS_INFO("viso_z_: [%f]",viso2->getTwistLinear());
-        ROS_INFO("cmd_vel_linear_: [%f]", cmd->getTwistLinear());
+        warning = true;
       }
       else ROS_INFO("Fine! Continuing...");
 
@@ -98,9 +120,7 @@ void infoCallback(const viso2_ros::VisoInfo::ConstPtr& msg,
       ROS_WARN("Current angular not equal, checking last one...");
       if(!isEqual(viso2->getTwistAngular(),cmd->getOldAngular()))
       {
-        ROS_ERROR("Angular velocity is not equal");
-        ROS_INFO("viso_ang_y:[%f]",viso2->getTwistAngular());
-        ROS_INFO("cmd_vel_angular:[%f]", cmd->getOldAngular());
+        warning = true;
       }
       else
       {
@@ -108,32 +128,81 @@ void infoCallback(const viso2_ros::VisoInfo::ConstPtr& msg,
       }
 
     }
+    //updateWindow(warning);
+
     // save current value as old one
     cmd->buff_angular_=cmd->getTwistAngular();
     cmd->buff_linear_=cmd->getTwistLinear();
   }
 }
 
+void compare(boost::shared_ptr<visual_odom::ComponentOdom> kalman, 
+             boost::shared_ptr<visual_odom::ComponentOdom> cmd)
+{
+  if (kalman->had_first_callback_)
+  {
+    if(!isEqual(kalman->getTwistLinear(),cmd->getTwistLinear()))
+    {
+      ROS_WARN("Current linear not equal, checking last one...");
+      if(!isEqual(kalman->getTwistLinear(),cmd->getOldLinear()))
+      {
+
+        ROS_ERROR("Linear velocity is not equal");
+        ROS_INFO("kalman: [%f]",kalman->getTwistLinear());
+        ROS_INFO("cmd_vel: [%f]", cmd->getTwistLinear());
+      }
+      else ROS_INFO("Fine! Continuing...");
+    }
+
+    if(!isEqual(kalman->getTwistAngular(),cmd->getTwistAngular()))
+    {
+      ROS_WARN("Current angular not equal, checking last one...");
+      if(!isEqual(kalman->getTwistAngular(),cmd->getOldAngular()))
+      {
+        ROS_ERROR("Angular velocity is not equal");
+        ROS_INFO("kalman:[%f]",kalman->getTwistAngular());
+        ROS_INFO("cmd_vel:[%f]", cmd->getOldAngular());
+      }
+      else ROS_INFO("Fine! Continuing...");
+    }
+    // save current value as old one
+    cmd->buff_angular_=cmd->getTwistAngular();
+    cmd->buff_linear_=cmd->getTwistLinear();
+  }
+
+}
+
+
+
 
 int main(int argc, char **argv)
 {
-
   ros::init(argc, argv, "visual_odom");
 
-  boost::shared_ptr<visual_odom::ComponentOdom> viso2_ptr(new visual_odom::ComponentOdom("/mono_odometer/odometry", true));
-  boost::shared_ptr<visual_odom::ComponentOdom> cmd_vel_ptr(new visual_odom::ComponentOdom("/mux_vel_raw/cmd_vel", false));
- // visual_odom::ComponentOdom viso2("/mono_odometer/odometry", true);
-  //visual_odom::ComponentOdom cmd_vel("/mux_vel_raw/cmd_vel", false);
+  boost::shared_ptr<visual_odom::ComponentOdom> viso2_ptr(new visual_odom::ComponentOdom("/mono_odometer/odometry", false));
+  boost::shared_ptr<visual_odom::ComponentOdom> cmd_vel_ptr(new visual_odom::ComponentOdom("/mux_vel_raw/cmd_vel", true));
+  //boost::shared_ptr<visual_odom::ComponentOdom> kalman_ptr(new visual_odom::ComponentOdom("/filtered_vel", false));
+
+  
+  //boost::shared_ptr<visual_odom::ComponentOdom> viso2_ptr(new visual_odom::ComponentOdom("/mono_odometer/odometry", false));
 
   ros::NodeHandle nh;
   ros::Subscriber info_sub = nh.subscribe<viso2_ros::VisoInfo>("/mono_odometer/info", 
                                                                 1000, 
                                                                 boost::bind(infoCallback, _1, viso2_ptr, cmd_vel_ptr));
-
-
+  
 
   ROS_INFO("VISUAL_ODOM STARTED !!");
 
+  // ROS loop
+  /*ros::Rate rate(20.0);
+
+  while (ros::ok())
+  {
+      compare(kalman_ptr,cmd_vel_ptr);
+      ros::spinOnce();
+      rate.sleep();
+  }*/
   ros::spin();
   return 0;
 }
