@@ -84,7 +84,7 @@ void updateWindow(bool warning)
   // check number of warnings in window
   int counter=0;
   for (std::list<bool>::iterator it = warnings_.begin(); it != warnings_.end(); it++)
-    ++counter;
+    if(*it==true) ++counter;
   if (counter>=5)
     ROS_ERROR("Velocities are not equal");
 
@@ -128,48 +128,12 @@ void infoCallback(const viso2_ros::VisoInfo::ConstPtr& msg,
       }
 
     }
-    //updateWindow(warning);
+    updateWindow(warning);
 
     // save current value as old one
     cmd->buff_angular_=cmd->getTwistAngular();
     cmd->buff_linear_=cmd->getTwistLinear();
   }
-}
-
-void compare(boost::shared_ptr<visual_odom::ComponentOdom> kalman, 
-             boost::shared_ptr<visual_odom::ComponentOdom> cmd)
-{
-  if (kalman->had_first_callback_)
-  {
-    if(!isEqual(kalman->getTwistLinear(),cmd->getTwistLinear()))
-    {
-      ROS_WARN("Current linear not equal, checking last one...");
-      if(!isEqual(kalman->getTwistLinear(),cmd->getOldLinear()))
-      {
-
-        ROS_ERROR("Linear velocity is not equal");
-        ROS_INFO("kalman: [%f]",kalman->getTwistLinear());
-        ROS_INFO("cmd_vel: [%f]", cmd->getTwistLinear());
-      }
-      else ROS_INFO("Fine! Continuing...");
-    }
-
-    if(!isEqual(kalman->getTwistAngular(),cmd->getTwistAngular()))
-    {
-      ROS_WARN("Current angular not equal, checking last one...");
-      if(!isEqual(kalman->getTwistAngular(),cmd->getOldAngular()))
-      {
-        ROS_ERROR("Angular velocity is not equal");
-        ROS_INFO("kalman:[%f]",kalman->getTwistAngular());
-        ROS_INFO("cmd_vel:[%f]", cmd->getOldAngular());
-      }
-      else ROS_INFO("Fine! Continuing...");
-    }
-    // save current value as old one
-    cmd->buff_angular_=cmd->getTwistAngular();
-    cmd->buff_linear_=cmd->getTwistLinear();
-  }
-
 }
 
 
