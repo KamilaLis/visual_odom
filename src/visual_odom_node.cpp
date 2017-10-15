@@ -147,26 +147,16 @@ int main(int argc, char **argv)
   boost::shared_ptr<visual_odom::ComponentOdom> cmd_vel_ptr(new visual_odom::ComponentOdom("/mux_vel_raw/cmd_vel", true));
   //boost::shared_ptr<visual_odom::ComponentOdom> kalman_ptr(new visual_odom::ComponentOdom("/filtered_vel", false));
 
-  
-  //boost::shared_ptr<visual_odom::ComponentOdom> viso2_ptr(new visual_odom::ComponentOdom("/mono_odometer/odometry", false));
-
   ros::NodeHandle nh;
+
   ros::Subscriber info_sub = nh.subscribe<viso2_ros::VisoInfo>("/mono_odometer/info", 
                                                                 1000, 
                                                                 boost::bind(infoCallback, _1, viso2_ptr, cmd_vel_ptr));
-  
+  ros::NodeHandle local_nh("~");
+  ros::Publisher diagnostic_pub_ = local_nh.advertise<diagnostic_msgs::DiagnosticStatus>("info", 1);
 
   ROS_INFO("VISUAL_ODOM STARTED !!");
 
-  // ROS loop
-  /*ros::Rate rate(20.0);
-
-  while (ros::ok())
-  {
-      compare(kalman_ptr,cmd_vel_ptr);
-      ros::spinOnce();
-      rate.sleep();
-  }*/
   ros::spin();
   return 0;
 }
