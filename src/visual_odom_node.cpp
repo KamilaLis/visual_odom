@@ -1,6 +1,3 @@
-
-
-#include <ros/ros.h>
 #include "visual_odom/component_odom.h"
 
 namespace visual_odom
@@ -72,7 +69,7 @@ double ComponentOdom::getOldAngular()
 
 
 
-
+manager_api::AlertManagement manager("visual_odom");
 std::list<bool> warnings_;
 
 void updateWindow(bool warning)
@@ -84,10 +81,17 @@ void updateWindow(bool warning)
   // check number of warnings in window
   int counter=0;
   for (std::list<bool>::iterator it = warnings_.begin(); it != warnings_.end(); it++)
+  {
     if(*it==true) ++counter;
-  if (counter>=5)
-    ROS_ERROR("Velocities are not equal");
+  }
 
+  if (counter>=5)
+  {
+    ROS_ERROR("mitm: Velocities are not equal!");
+    //manager->error("mitm: Velocities are not equal!");
+    // reset warnings
+    warnings_.clear();
+  }
 }
 
 bool isEqual(double vel, double cmd_vel)
@@ -145,15 +149,13 @@ int main(int argc, char **argv)
 
   boost::shared_ptr<visual_odom::ComponentOdom> viso2_ptr(new visual_odom::ComponentOdom("/mono_odometer/odometry", false));
   boost::shared_ptr<visual_odom::ComponentOdom> cmd_vel_ptr(new visual_odom::ComponentOdom("/mux_vel_raw/cmd_vel", true));
-  //boost::shared_ptr<visual_odom::ComponentOdom> kalman_ptr(new visual_odom::ComponentOdom("/filtered_vel", false));
 
   ros::NodeHandle nh;
 
   ros::Subscriber info_sub = nh.subscribe<viso2_ros::VisoInfo>("/mono_odometer/info", 
                                                                 1000, 
                                                                 boost::bind(infoCallback, _1, viso2_ptr, cmd_vel_ptr));
-  ros::NodeHandle local_nh("~");
-  ros::Publisher diagnostic_pub_ = local_nh.advertise<diagnostic_msgs::DiagnosticStatus>("info", 1);
+  manager.initPublisher(nh);
 
   ROS_INFO("VISUAL_ODOM STARTED !!");
 

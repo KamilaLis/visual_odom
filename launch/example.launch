@@ -12,7 +12,7 @@
   <!--node pkg="tf" type="static_transform_publisher" name="base_to_sensor" args="0.0 0.0 0.5 -0.5 0.5 -0.5 0.5 base_link kinect_camera_rgb_optical_frame_bottom  100" /-->
 
   <!-- Viso2 -->
-  <node pkg="viso2_ros" type="mono_odometer" name="mono_odometer" output="screen">
+  <node pkg="viso2_ros" type="mono_odometer" name="mono_odometer" ><!--output="screen"-->
       <!--remap from="mono" to="$(arg camera)"/-->
       <remap from="image" to="$(arg camera)/image_raw"/>
       <!--remap from="/camera/camera_info" to="$(arg camera)/camera_info"/-->

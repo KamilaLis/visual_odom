@@ -12,6 +12,9 @@
 
 #include <boost/thread/mutex.hpp>
 
+#include "visual_odom/component_odom.h"
+#include "manager_api/AlertManagement.h"
+
 namespace visual_odom{
 
 class ComponentOdom
@@ -25,7 +28,6 @@ public:
     double buff_linear_;
     double buff_angular_;
     bool had_first_callback_;
-    //void updateWindow(bool warning);
 
 protected:
     void viso2Callback(const nav_msgs::Odometry::ConstPtr& msg);
@@ -37,7 +39,6 @@ private:
     ros::Subscriber sub_;
     double linear_;
     double angular_;
-    //std::list<bool> warnings_;
     boost::mutex mutex_;
 
 };
