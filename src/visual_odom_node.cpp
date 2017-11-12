@@ -69,7 +69,7 @@ double ComponentOdom::getOldAngular()
 
 
 
-manager_api::AlertManagement manager("visual_odom");
+manager_api::AlertManagement manager = manager_api::AlertManagement("visual_odom");
 std::list<bool> warnings_;
 
 void updateWindow(bool warning)
@@ -88,7 +88,7 @@ void updateWindow(bool warning)
   if (counter>=5)
   {
     ROS_ERROR("mitm: Velocities are not equal!");
-    //manager->error("mitm: Velocities are not equal!");
+    manager.error("mitm: Velocities are not equal!");
     // reset warnings
     warnings_.clear();
   }
@@ -105,30 +105,30 @@ void infoCallback(const viso2_ros::VisoInfo::ConstPtr& msg,
 {
   if(!msg->got_lost) //is possible to compare
   {
-    ROS_INFO(">> I'm here!");
+    manager.ok(">> I'm here!");
     bool warning=false;
 
     if(!isEqual(viso2->getTwistLinear(),cmd->getTwistLinear()))
     {
-      ROS_WARN("Current linear not equal, checking last one...");
+      manager.warn("Current linear not equal, checking last one...");
       if(!isEqual(viso2->getTwistLinear(),cmd->getOldLinear()))
       {
         warning = true;
       }
-      else ROS_INFO("Fine! Continuing...");
+      else manager.ok("Fine! Continuing...");
 
     }
 
     if(!isEqual(viso2->getTwistAngular(),cmd->getTwistAngular()))
     {
-      ROS_WARN("Current angular not equal, checking last one...");
+      manager.warn("Current angular not equal, checking last one...");
       if(!isEqual(viso2->getTwistAngular(),cmd->getOldAngular()))
       {
         warning = true;
       }
       else
       {
-        ROS_INFO("Fine! Continuing...");
+        manager.ok("Fine! Continuing...");
       }
 
     }
@@ -155,7 +155,8 @@ int main(int argc, char **argv)
   ros::Subscriber info_sub = nh.subscribe<viso2_ros::VisoInfo>("/mono_odometer/info", 
                                                                 1000, 
                                                                 boost::bind(infoCallback, _1, viso2_ptr, cmd_vel_ptr));
-  manager.initPublisher(nh);
+  ros::NodeHandle local_nh("~");
+  manager.initPublisher(local_nh);
 
   ROS_INFO("VISUAL_ODOM STARTED !!");
 
