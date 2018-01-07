@@ -14,6 +14,7 @@
 
 #include "visual_odom/component_odom.h"
 #include "manager_api/AlertManagement.h"
+#include "manager_api/ManagerClient.h"
 
 namespace visual_odom{
 

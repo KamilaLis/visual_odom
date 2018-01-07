@@ -68,8 +68,8 @@ double ComponentOdom::getOldAngular()
 }; //namespace
 
 
-
-manager_api::AlertManagement manager = manager_api::AlertManagement("visual_odom");
+manager_api::ManagerClient manager_client = manager_api::ManagerClient("visual_odom");
+manager_api::AlertManagement manager_pub = manager_api::AlertManagement("visual_odom");
 std::list<bool> warnings_;
 
 void updateWindow(bool warning)
@@ -85,10 +85,15 @@ void updateWindow(bool warning)
     if(*it==true) ++counter;
   }
 
-  if (counter>=5)
+  if (counter>=7)
   {
-    ROS_ERROR("mitm: Velocities are not equal!");
-    manager.error("mitm: Velocities are not equal!");
+    std::string msg = "mitm: Velocities are not equal!";
+    ROS_ERROR("%s",msg.c_str());     // show on console
+    manager_pub.error(msg);     // public (for later use)
+
+    // tell manager to stop sending control
+    manager_client.error(msg, manager_api::Message::killPublisher, "/mux_vel_raw/cmd_vel");  
+
     // reset warnings
     warnings_.clear();
   }
@@ -105,30 +110,30 @@ void infoCallback(const viso2_ros::VisoInfo::ConstPtr& msg,
 {
   if(!msg->got_lost) //is possible to compare
   {
-    manager.ok(">> I'm here!");
+    manager_pub.ok(">> I'm here!");
     bool warning=false;
 
     if(!isEqual(viso2->getTwistLinear(),cmd->getTwistLinear()))
     {
-      manager.warn("Current linear not equal, checking last one...");
+      manager_pub.warn("Current linear not equal, checking last one...");
       if(!isEqual(viso2->getTwistLinear(),cmd->getOldLinear()))
       {
         warning = true;
       }
-      else manager.ok("Fine! Continuing...");
+      else manager_pub.ok("Fine! Continuing...");
 
     }
 
     if(!isEqual(viso2->getTwistAngular(),cmd->getTwistAngular()))
     {
-      manager.warn("Current angular not equal, checking last one...");
+      manager_pub.warn("Current angular not equal, checking last one...");
       if(!isEqual(viso2->getTwistAngular(),cmd->getOldAngular()))
       {
         warning = true;
       }
       else
       {
-        manager.ok("Fine! Continuing...");
+        manager_pub.ok("Fine! Continuing...");
       }
 
     }
@@ -156,7 +161,9 @@ int main(int argc, char **argv)
                                                                 1000, 
                                                                 boost::bind(infoCallback, _1, viso2_ptr, cmd_vel_ptr));
   ros::NodeHandle local_nh("~");
-  manager.initPublisher(local_nh);
+  ros::NodeHandle n;
+  manager_pub.initPublisher(local_nh);
+  manager_client.initManagerClient(n);
 
   ROS_INFO("VISUAL_ODOM STARTED !!");
 
